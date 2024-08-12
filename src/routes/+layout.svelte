@@ -31,9 +31,6 @@
 	});
 </script>
 
-<svelte:head>
-	<title>GUESS WHO | Login</title>
-</svelte:head>
-<div class="flex flex-col min-h-screen items-center *:w-full">
+<div class="grid min-h-screen place-items-center bg-background *:w-full">
 	<slot />
 </div>

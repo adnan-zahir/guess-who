@@ -1,59 +1,116 @@
-import { fail, superValidate } from "sveltekit-superforms";
-import { zod } from "sveltekit-superforms/adapters";
-import { loginSchema } from "$lib/settings/schema";
+import { fail, superValidate } from 'sveltekit-superforms';
+import { zod } from 'sveltekit-superforms/adapters';
+import { loginSchema, signUpSchema } from '$lib/settings/schema';
 
-import { redirect } from "@sveltejs/kit";
+import { redirect } from '@sveltejs/kit';
 
 /** @typedef {Object} Data
-  * @prop {string} email
-  * @prop {string} password
-  * */
+ * @prop {string | null} email
+ * @prop {string} [username]
+ * @prop {string} password
+ * */
 
 /** @type {import('./$types').PageServerLoad} */
 export const load = async ({ locals: { safeGetSession } }) => {
-  const { session } = await safeGetSession();
+	const { session } = await safeGetSession();
 
-  console.log(session);
+	if (session) {
+		redirect(303, '/play');
+	}
 
-  if (session) {
-    redirect(303, '/play');
-  }
-
-  return {
-    form: await superValidate(zod(loginSchema)),
-  };
+	return {
+		signInData: await superValidate(zod(loginSchema)),
+		signUpData: await superValidate(zod(signUpSchema))
+	};
 };
 
 /** @type {import('./$types').Actions} */
 export const actions = {
-  default: async (e) => {
-    const {
-      request, locals: { supabase }
-    } = e;
+	signin: async (e) => {
+		const {
+			request,
+			locals: { supabase }
+		} = e;
 
-    const formData = await request.formData();
+		const formData = await request.formData();
 
-    /** @type {Data} */
-    const data = {
-      email: String(formData.get('email')),
-      password: String(formData.get('password'))
-    }
+		/** @type {Data} */
+		const data = {
+			email: formData.get('email') !== null ? String(formData.get('email')) : null,
+			password: formData.get('password') !== null ? String(formData.get('password')) : ''
+		};
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email: data.email, password: data.password,
-    })
+		if (data.email === null) {
+			return fail(400, {
+				success: false,
+				message: 'Invalid email.'
+			});
+		}
 
-    if (error) {
-      return fail(400, {
-        success: false,
-        email: data.email,
-        message: "There was an issue, please contact support."
-      })
-    }
+		// SignIn
+		const { error } = await supabase.auth.signInWithPassword({
+			email: data.email,
+			password: data.password
+		});
 
-    return {
-      success: true,
-      message: "Signed In, Welcome Back!"
-    }
-  }
-}
+		if (error) {
+			return fail(400, {
+				success: false,
+				email: data.email,
+				message: 'There was an issue during signin, please contact support.'
+			});
+		}
+
+		return {
+			success: true,
+			message: 'Signed In, Welcome Back!'
+		};
+	},
+	signup: async (e) => {
+		const {
+			request,
+			locals: { supabase }
+		} = e;
+
+		const formData = await request.formData();
+
+		/** @type {Data} */
+		const data = {
+			email: formData.get('email') !== null ? String(formData.get('email')) : null,
+			username: formData.get('username') !== null ? String(formData.get('username')) : '',
+			password: formData.get('password') !== null ? String(formData.get('password')) : ''
+		};
+
+		// SignUp
+		if (data.email === null) {
+			return fail(400, {
+				success: false,
+				message: 'Invalid email.'
+			});
+		}
+
+		const { error } = await supabase.auth.signUp({
+			email: data.email,
+			password: data.password,
+			options: {
+				data: {
+					email: data.email,
+					username: data.username
+				}
+			}
+		});
+
+		if (error) {
+			return fail(400, {
+				success: false,
+				email: data.email,
+				message: 'There was an issue during signup, please contact support.'
+			});
+		}
+
+		return {
+			success: true,
+			message: 'Signed Up, Welcome ' + data.username + '!'
+		};
+	}
+};
